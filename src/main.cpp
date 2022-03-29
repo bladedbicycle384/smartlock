@@ -1,24 +1,39 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
+#include <ESP32Servo.h>
+#include <SPIFFS.h>
 #include <ESP32QRCodeReader.h>
 #include <BluetoothSerial.h>
+
+using namespace std;
 
 #define LOCK_PIN 12
 
 ESP32QRCodeReader scanner(CAMERA_MODEL_AI_THINKER);
 BluetoothSerial SerialBT;
+Servo lockServo;
+
 int authCount = 0;
-DynamicJsonDocument accessList(10240);
-accessList["masterKey"] = "sample_master_key";
+
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println();
+
+  scanner.setup();
+  scanner.begin();
+
+
+  lockServo.attach(LOCK_PIN);
+}
 
 void closeLock()
 {
-  digitalWrite(LOCK_PIN, LOW);
+  lockServo.write(0);
 }
 
 void openLock()
 {
-  digitalWrite(LOCK_PIN, HIGH);
+  lockServo.write(180);
 }
 
 void QRScan()
@@ -27,12 +42,21 @@ void QRScan()
 
   if(scanner.receiveQrCode(&qrCode, 100))
   {
+    File authList = SPIFFS.open("/access_list.txt", "r");
+    vector<String> authVect;
+    while(authList.available())
+    {
+      authVect.push_back(authList.readStringUntil('\n'));
+    }
+    authList.close();
+
     if(qrCode.valid)
     {
-      if(strcmp((const char*)qrCode.payload, accessList["masterKey"]) == 0)
+      if(strcmp((char*)qrCode.payload, authVect[0].c_str()) == 0)
       {
         Serial.println("Entered master key code, enabling bluetooth for editing\n");
         SerialBT.begin("SmartLock");
+        File adminAccessList = SPIFFS.open("/access_list.txt", FILE_WRITE);
         
         while(true)
         {
@@ -46,7 +70,7 @@ void QRScan()
               itoa(SerialBT.read(), newAuthData, 10);
               if(strcmp(btData, newAuthData) != 0)
               {
-                accessList["authUsers"][authCount] = SerialBT.read();
+                adminAccessList.println(newAuthData);
                 authCount++;
                 return;
               }
@@ -62,13 +86,24 @@ void QRScan()
               {
                 int i = 0;
                 if(i == authCount)
-                {
+                {   
                   Serial.println("No such entry found\n");
                   return;
                 }
-                else if(strcmp(delAuthData, accessList["authUsers"][i]) == 0)
+                else if(strcmp(delAuthData, authVect[i].c_str()) == 0)
                 {
-                  accessList["authUsers"][i].remove;
+                  uint8_t keySize = authVect[i].length() + 2;
+                  uint32_t S = (i-1)*keySize;
+                  adminAccessList.seek(S);
+                  char rem[keySize + 1];
+                  for(uint8_t x = 0; i < (keySize - 2); i++)
+                  {
+                    rem[x] = ' ';
+                  }
+                  rem[keySize - 2] = '\r';
+                  rem[keySize - 1] = '\n';
+                  rem[keySize] = '\0';
+                  adminAccessList.print(rem);
                   authCount--;
                   Serial.println("Successfuly deleted from access list");
                   return;
@@ -78,20 +113,20 @@ void QRScan()
             }
           } 
         }
+        adminAccessList.close();
       }
       else 
       {
         while(true)
         {
           int i = 0;
-          if(i == authCount)
+          if(i > authCount)
           {
-            Serial.println("Access denied\n");
+            Serial.println("Access denied, no such key\n");
             return;
           }
-          if(strcmp((const char*)qrCode.payload, accessList["authUsers"][i]) == 0)
+          if(strcmp((const char*)qrCode.payload, authVect[i].c_str()) == 0)
           {
-            // open lock
             Serial.println("QR key accepted, opening lock\n");
             openLock();
             delay(10000);
@@ -107,17 +142,6 @@ void QRScan()
       Serial.println("Invalid data\n");
     }
   }
-}
-
-void setup()
-{
-  Serial.begin(115200);
-  Serial.println();
-
-  scanner.setup();
-  scanner.begin();
-
-  pinMode(LOCK_PIN, OUTPUT);
 }
 
 void loop()
