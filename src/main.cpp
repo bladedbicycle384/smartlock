@@ -72,9 +72,6 @@ void QRScan()
               {
                 adminAccessList.println(newAuthData);
                 authCount++;
-                adminAccessList.close();
-                lockBT.end();
-                return;
               }
             }
           }
@@ -89,7 +86,7 @@ void QRScan()
                 int i = 0;
                 if(i == authCount)
                 {   
-                  Serial.println("No such entry found\n");
+                  lockBT.println("No such entry found\n");
                   return;
                 }
                 else if(strcmp(delAuthData, authVect[i].c_str()) == 0)
@@ -107,15 +104,19 @@ void QRScan()
                   rem[keySize] = '\0';
                   adminAccessList.print(rem);
                   authCount--;
-                  Serial.println("Successfuly deleted from access list");
-                  adminAccessList.close();
-                  lockBT.end();
-                  return;
+                  lockBT.println("Successfuly deleted from access list");
                 }
                 i++;
               }
             }
-          } 
+          }
+          else if(strcmp("stop", btData) == 0)
+          {
+            lockBT.println("Exiting admin mode\n");
+            adminAccessList.close();
+            lockBT.end();
+            return;
+          }
         }
       }
       else 
