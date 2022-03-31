@@ -40,16 +40,21 @@ void QRScan()
 {
   struct QRCodeData qrCode;
 
+  File authList = SPIFFS.open("/access_list.txt", "r");
+  if(!authList)
+  {
+    Serial.println("There was an error opening the access list\n");
+    return;
+  }
+  vector<String> authVect;
+  while(authList.available())
+  {
+    authVect.push_back(authList.readStringUntil('\n'));
+  }
+  authList.close();
+  
   if(scanner.receiveQrCode(&qrCode, 100))
   {
-    File authList = SPIFFS.open("/access_list.txt", "r");
-    vector<String> authVect;
-    while(authList.available())
-    {
-      authVect.push_back(authList.readStringUntil('\n'));
-    }
-    authList.close();
-
     if(qrCode.valid)
     {
       if(strcmp((char*)qrCode.payload, authVect[0].c_str()) == 0)
@@ -57,7 +62,12 @@ void QRScan()
         Serial.println("Entered master key code, enabling bluetooth for editing\n");
         lockBT.begin("SmartLock");
         File adminAccessList = SPIFFS.open("/access_list.txt", FILE_WRITE);
-        
+        if(!adminAccessList)
+        {
+          Serial.println("There was an error opening the access list\n");
+          return;
+        }
+
         while(true)
         {
           char *btData;
@@ -70,6 +80,7 @@ void QRScan()
               itoa(lockBT.read(), newAuthData, 10);
               if(strcmp(btData, newAuthData) != 0)
               {
+                adminAccessList.seek(SeekEnd);
                 adminAccessList.println(newAuthData);
                 authCount++;
               }
@@ -144,6 +155,7 @@ void QRScan()
     else
     {
       Serial.println("Invalid data\n");
+      return;
     }
   }
 }
