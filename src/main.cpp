@@ -9,7 +9,7 @@ using namespace std;
 #define LOCK_PIN 12
 
 ESP32QRCodeReader scanner(CAMERA_MODEL_AI_THINKER);
-BluetoothSerial SerialBT;
+BluetoothSerial lockBT;
 Servo lockServo;
 
 int authCount = 0;
@@ -55,23 +55,25 @@ void QRScan()
       if(strcmp((char*)qrCode.payload, authVect[0].c_str()) == 0)
       {
         Serial.println("Entered master key code, enabling bluetooth for editing\n");
-        SerialBT.begin("SmartLock");
+        lockBT.begin("SmartLock");
         File adminAccessList = SPIFFS.open("/access_list.txt", FILE_WRITE);
         
         while(true)
         {
           char *btData;
-          itoa(SerialBT.read(), btData, 10);
+          itoa(lockBT.read(), btData, 10);
           if(strcmp("add", btData) == 0)
           {
             while(true)
             {
               char *newAuthData; 
-              itoa(SerialBT.read(), newAuthData, 10);
+              itoa(lockBT.read(), newAuthData, 10);
               if(strcmp(btData, newAuthData) != 0)
               {
                 adminAccessList.println(newAuthData);
                 authCount++;
+                adminAccessList.close();
+                lockBT.end();
                 return;
               }
             }
@@ -81,7 +83,7 @@ void QRScan()
             while(true)
             {
               char *delAuthData;
-              itoa(SerialBT.read(), delAuthData, 10);
+              itoa(lockBT.read(), delAuthData, 10);
               if(strcmp(btData, delAuthData) != 0)
               {
                 int i = 0;
@@ -106,6 +108,8 @@ void QRScan()
                   adminAccessList.print(rem);
                   authCount--;
                   Serial.println("Successfuly deleted from access list");
+                  adminAccessList.close();
+                  lockBT.end();
                   return;
                 }
                 i++;
@@ -113,13 +117,12 @@ void QRScan()
             }
           } 
         }
-        adminAccessList.close();
       }
       else 
       {
+        int i = 0;
         while(true)
         {
-          int i = 0;
           if(i > authCount)
           {
             Serial.println("Access denied, no such key\n");
