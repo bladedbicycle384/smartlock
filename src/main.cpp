@@ -70,15 +70,18 @@ void QRScan()
 
         while(true)
         {
-          char *btData;
-          itoa(lockBT.read(), btData, 10);
-          if(strcmp("add", btData) == 0)
+          String btData = lockBT.readString();
+          if(strcmp("add", btData.c_str()) == 0)
           {
             while(true)
             {
-              char *newAuthData; 
-              itoa(lockBT.read(), newAuthData, 10);
-              if(strcmp(btData, newAuthData) != 0)
+              String newAuthData = lockBT.readString();
+              if(strcmp("stop", newAuthData.c_str()) == 0)
+              {
+                lockBT.println("Exited addition mode");
+                break;
+              }
+              else if(newAuthData.length() > 0)
               {
                 adminAccessList.seek(SeekEnd);
                 adminAccessList.println(newAuthData);
@@ -86,42 +89,66 @@ void QRScan()
               }
             }
           }
-          else if(strcmp("delete", btData) == 0)
+          else if(strcmp("delete", btData.c_str()) == 0)
           {
             while(true)
             {
-              char *delAuthData;
-              itoa(lockBT.read(), delAuthData, 10);
-              if(strcmp(btData, delAuthData) != 0)
+              bool stopped = false;
+              bool found = true;
+
+              String delAuthData = lockBT.readString();
+              if(delAuthData.length() != 0)
               {
-                int i = 0;
-                if(i == authCount)
-                {   
-                  lockBT.println("No such entry found\n");
-                  return;
-                }
-                else if(strcmp(delAuthData, authVect[i].c_str()) == 0)
+                for(int i = 0; i < authCount; i++)
                 {
-                  uint8_t keySize = authVect[i].length() + 2;
-                  uint32_t S = (i-1)*keySize;
-                  adminAccessList.seek(S);
-                  char rem[keySize + 1];
-                  for(uint8_t x = 0; i < (keySize - 2); i++)
+                  if(strcmp("stop", delAuthData.c_str()) == 0)
                   {
-                    rem[x] = ' ';
+                    stopped = true;
+                    break;
                   }
-                  rem[keySize - 2] = '\r';
-                  rem[keySize - 1] = '\n';
-                  rem[keySize] = '\0';
-                  adminAccessList.print(rem);
-                  authCount--;
-                  lockBT.println("Successfuly deleted from access list");
+                  else if(strcmp(delAuthData.c_str(), authVect[i].c_str()) == 0)
+                  {
+                    adminAccessList.seek(SeekSet);
+                    uint8_t delSize = authVect[i].length() + 1;
+                    for(int x= 0; x < authCount; x++)
+                    {
+                      String testDel = adminAccessList.readStringUntil('\n');
+                      if(strcmp(authVect[i].c_str(), testDel.c_str()) == 0)
+                      {
+                        adminAccessList.seek(-testDel.length(), SeekCur);
+                        break;
+                      }
+                    }
+                    char rem[delSize + 1];
+                    for(uint8_t x = 0; i < (delSize - 1); i++)
+                    {
+                      rem[x] = ' ';
+                    }
+                    rem[delSize - 1] = '\r';
+                    rem[delSize] = '\n';
+                    adminAccessList.print(rem);
+                    lockBT.println("Successfuly deleted from access list");
+                    break;
+                  }
+                  if(i == authCount - 1)
+                  {
+                    found = false;
+                  }
                 }
-                i++;
+
+                if(found == false)
+                {
+                  lockBT.println("No such entry found");
+                }
+                if(stopped == true)
+                {
+                  lockBT.println("Exited deletion mode");
+                  break;
+                }
               }
             }
           }
-          else if(strcmp("stop", btData) == 0)
+          else if(strcmp("stop", btData.c_str()) == 0)
           {
             lockBT.println("Exiting admin mode\n");
             adminAccessList.close();
@@ -135,7 +162,7 @@ void QRScan()
         int i = 0;
         while(true)
         {
-          if(i > authCount)
+          if(i = authCount)
           {
             Serial.println("Access denied, no such key\n");
             return;
@@ -163,5 +190,5 @@ void QRScan()
 void loop()
 {
   QRScan();
-  delay(100);
+  delay(1000);
 }
