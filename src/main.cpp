@@ -21,6 +21,41 @@ String del = "delete\r";
 String stp = "stop\r";
 struct QRCodeData qrCode;
 
+// void file_setup()
+// {
+// File authList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
+// if(!authList)
+// {
+//   Serial.println("error opening file");
+//   return;
+// }
+// if(authList.println("masterkey"))
+// {
+//   Serial.println("File was written");
+// }
+// else
+// {
+//   Serial.println("file write failed");
+// }
+// if(authList.println("testkey1"))
+// {
+//   Serial.println("File was written");
+// }
+// else
+// {
+//   Serial.println("file write failed");
+// }
+// if(authList.println("test key 2"))
+// {
+//   Serial.println("File was written");
+// }
+// else
+// {
+//   Serial.println("file write failed");
+// }
+// authList.close();
+// }
+
 void setup()
 {
   Serial.begin(115200);
@@ -38,49 +73,13 @@ void setup()
   // File file = root.openNextFile();
   // Serial.println("showcasing files.");
 
+  // file_setup();
+  
   // while(file)
   // {
   //   Serial.print("FILE: ");
   //   Serial.println(file.name());
   //   file = root.openNextFile();
-  // }
-
-  // File authList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
-  // if(!authList)
-  // {
-  //   Serial.println("error opening file");
-  //   return;
-  // }
-  // if(authList.println("masterkey"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // if(authList.println("testkey1"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // if(authList.println("test key 2"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // authList.close();
-
-
-  // while(authList.available())
-  // {
-  //   Serial.write(authList.read());
   // }
 
   lockServo.attach(LOCK_PIN);
