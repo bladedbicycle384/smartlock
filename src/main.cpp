@@ -32,7 +32,7 @@ void setup()
 
   delay(5000);
 
-  // SPIFFS.remove("accesslist.txt");
+  // SPIFFS.remove("/accesslist.txt");
 
   // File root = SPIFFS.open("/");
   // File file = root.openNextFile();
