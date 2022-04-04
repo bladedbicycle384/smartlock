@@ -14,6 +14,7 @@ ESP32QRCodeReader scanner(CAMERA_MODEL_AI_THINKER);
 BluetoothSerial lockBT;
 Servo lockServo;
 
+bool isSetUp = false;
 int authCount;
 int testCount = 1;
 String add = "add\r";
@@ -30,22 +31,6 @@ void file_setup()
     return;
   }
   if(authList.println("masterkey"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("testkey1"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("test key 2"))
   {
     Serial.println("File was written");
   }
@@ -73,36 +58,9 @@ void list_files()
   root.close();
 }
 
-void removeFile(String pathname)
+void remove_file(String pathname)
 {
   SPIFFS.remove(pathname);
-}
-
-void visualizeFileAndHiddenTest()
-{
-  String tk1 = "testkey1\r";
-  
-  File authLS = SPIFFS.open("/accesslist.txt");
-  vector<String> authVect;
-  while(authLS.available())
-  {
-    authVect.push_back(authLS.readStringUntil('\n'));
-  }
-
-  for(String s : authVect)
-  {
-    Serial.println(s);
-    Serial.println(tk1);
-    if(s == tk1)
-    {
-      Serial.println("matching elements");
-    }
-    else
-    {
-      Serial.println("not matching elements");
-    }
-  }
-  authLS.close();
 }
 
 void setup()
@@ -110,6 +68,11 @@ void setup()
   Serial.begin(115200);
 
   SPIFFS.begin(true);
+
+  if(isSetUp == false)
+  {
+    file_setup();
+  }
 
   scanner.setup();
   scanner.begin();
@@ -126,20 +89,16 @@ void closeLock()
 
 void openLock()
 {
-  lockServo.write(90);
+  lockServo.write(180);
 }
 
 void QRScan()
 {
-  Serial.println("before opening file");
-
   File authList = SPIFFS.open("/accesslist.txt");
   if(!authList)
   {
-    Serial.println("There was an error opening the access list\n");
     return;
   }
-  Serial.println("Scanning for qr");
 
   vector<String> authVect;
   while(authList.available())
@@ -148,48 +107,18 @@ void QRScan()
   }
   authList.close();
 
-  for(String s : authVect)
-  {
-    Serial.println(s);
-  }
-
-  Serial.println(testCount);
-  Serial.println("");
-  testCount++;
-  delay(200);
-
   if(scanner.receiveQrCode(&qrCode, 100))
   {
-    Serial.print("QR scanned ");
     String qrData = (const char*)qrCode.payload;
     qrData += '\r';
     if(qrCode.valid)
     {
-      Serial.print("Valid: ");
-      Serial.println(qrData);
-
-  	  // for(String s: authVect)
-      // {
-      //   Serial.println(s);
-      //   Serial.println(qrData);
-      //   if(s == qrData)
-      //   {
-      //     Serial.println("values match");
-      //   }
-      //   else
-      //   {
-      //     Serial.println("values don't match");
-      //   }
-      // }
-
       if(qrData == authVect[0])
       {
-        Serial.println("Entered master key code, enabling bluetooth for editing\n");
         lockBT.begin("SmartLock");
         File adminAccessList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
         if(!adminAccessList)
         {
-          Serial.println("There was an error opening the access list\n");
           return;
         }
 
@@ -292,16 +221,13 @@ void QRScan()
         {
           if(i == authCount)
           {
-            Serial.println("Access denied, no such key\n");
             delay(5000);
             break;
           }
           if(qrData == authVect[i])
           {
-            Serial.println("QR key accepted, opening lock\n");
             openLock();
             delay(10000);
-            Serial.println("Closing lock");
             closeLock();
             return;
           }
@@ -311,7 +237,6 @@ void QRScan()
     }
     else
     {
-      Serial.println("Invalid data\n");
       return;
     }
   }
