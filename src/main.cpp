@@ -21,6 +21,90 @@ String del = "delete\r";
 String stp = "stop\r";
 struct QRCodeData qrCode;
 
+void file_setup()
+{
+  File authList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
+  if(!authList)
+  {
+    Serial.println("error opening file");
+    return;
+  }
+  if(authList.println("masterkey"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  if(authList.println("testkey1"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  if(authList.println("test key 2"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  authList.close();
+}
+
+void list_files()
+{
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  Serial.println("showcasing files.");
+
+  while(file)
+  {
+    Serial.print("FILE: ");
+    Serial.println(file.name());
+    file = root.openNextFile();
+  }
+
+  file.close();
+  root.close();
+}
+
+void removeFile(String pathname)
+{
+  SPIFFS.remove(pathname);
+}
+
+void visualizeFileAndHiddenTest()
+{
+  String tk1 = "testkey1\r";
+  
+  File authLS = SPIFFS.open("/accesslist.txt");
+  vector<String> authVect;
+  while(authLS.available())
+  {
+    authVect.push_back(authLS.readStringUntil('\n'));
+  }
+
+  for(String s : authVect)
+  {
+    Serial.println(s);
+    Serial.println(tk1);
+    if(s == tk1)
+    {
+      Serial.println("matching elements");
+    }
+    else
+    {
+      Serial.println("not matching elements");
+    }
+  }
+  authLS.close();
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -31,57 +115,6 @@ void setup()
   scanner.begin();
 
   delay(5000);
-
-  // SPIFFS.remove("accesslist.txt");
-
-  // File root = SPIFFS.open("/");
-  // File file = root.openNextFile();
-  // Serial.println("showcasing files.");
-
-  // while(file)
-  // {
-  //   Serial.print("FILE: ");
-  //   Serial.println(file.name());
-  //   file = root.openNextFile();
-  // }
-
-  // File authList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
-  // if(!authList)
-  // {
-  //   Serial.println("error opening file");
-  //   return;
-  // }
-  // if(authList.println("masterkey"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // if(authList.println("testkey1"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // if(authList.println("test key 2"))
-  // {
-  //   Serial.println("File was written");
-  // }
-  // else
-  // {
-  //   Serial.println("file write failed");
-  // }
-  // authList.close();
-
-
-  // while(authList.available())
-  // {
-  //   Serial.write(authList.read());
-  // }
 
   lockServo.attach(LOCK_PIN);
 }
@@ -115,15 +148,15 @@ void QRScan()
   }
   authList.close();
 
-  // for(String s : authVect)
-  // {
-  //   Serial.println(s);
-  // }
+  for(String s : authVect)
+  {
+    Serial.println(s);
+  }
 
   Serial.println(testCount);
   Serial.println("");
   testCount++;
-  delay(2000);
+  delay(200);
 
   if(scanner.receiveQrCode(&qrCode, 100))
   {
@@ -141,11 +174,11 @@ void QRScan()
       //   Serial.println(qrData);
       //   if(s == qrData)
       //   {
-      //     Serial.println("identical!?");
+      //     Serial.println("values match");
       //   }
       //   else
       //   {
-      //     Serial.println("sadly not :pensive:");
+      //     Serial.println("values don't match");
       //   }
       // }
 
@@ -260,6 +293,7 @@ void QRScan()
           if(i == authCount)
           {
             Serial.println("Access denied, no such key\n");
+            delay(5000);
             break;
           }
           if(qrData == authVect[i])
@@ -269,7 +303,7 @@ void QRScan()
             delay(10000);
             Serial.println("Closing lock");
             closeLock();
-            break;
+            return;
           }
           i++;
         }
@@ -295,22 +329,9 @@ void loop()
     Serial.println(authCount);
   }
 
-  QRScan();
-  // String tk1 = "testkey1\r";
-  
-  // for(String s : authVect)
-  // {
-  //   Serial.println(s);
-  //   Serial.println(tk1);
-  //   if(s == tk1)
-  //   {
-  //     Serial.println("identical!?");
-  //   }
-  //   else
-  //   {
-  //     Serial.println("sadly not :pensive:");
-  //   }
-  // }
   authCountF.close();
-  delay(2500);
+
+  QRScan();
+  
+  delay(200);
 }
