@@ -1,10 +1,12 @@
 #include <Arduino.h>
+#include <string.h>
 #include <esp_camera.h>
 #include <ESP32Servo.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include <ESP32QRCodeReader.h>
 #include <BluetoothSerial.h>
+#include <ESP32Time.h>
 
 using namespace std;
 
@@ -13,14 +15,19 @@ using namespace std;
 ESP32QRCodeReader scanner(CAMERA_MODEL_AI_THINKER);
 BluetoothSerial lockBT;
 Servo lockServo;
+ESP32Time espClock;
 
 int authCount;
 int testCount = 1;
-String add = "add\r";
-String del = "delete\r";
-String stp = "stop\r";
-String edt = "edit\n";
+
 struct QRCodeData qrCode;
+
+String add = "A\r";
+String del = "D\r";
+String edt = "E\n";
+String stp = "S\r";
+String setT = "set time\r";
+String readL = "read log\r";
 
 void file_setup()
 {
@@ -46,7 +53,54 @@ void file_setup()
   {
     Serial.println("file write failed");
   }
+  if(authList.println("devicename"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  if(authList.println("deviceplacement"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  if(authList.println("wifi name"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  if(authList.println("wifipassword"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
   authList.close();
+
+  File logList = SPIFFS.open("/auditlog.txt", FILE_WRITE);
+  if(!logList)
+  {
+    Serial.println("error opening file");
+  }
+  if(logList.println("true"))
+  {
+    Serial.println("File was written");
+  }
+  else
+  {
+    Serial.println("file write failed");
+  }
+  logList.close();
 }
 
 void list_files()
@@ -91,19 +145,19 @@ void setup()
   scanner.setup();
   scanner.begin();
 
-  delay(5000);
-
   lockServo.attach(LOCK_PIN);
 }
 
 void closeLock()
 {
   lockServo.write(0);
+  delay(2000);
 }
 
 void openLock()
 {
   lockServo.write(180);
+  delay(200);
 }
 
 void QRScan()
@@ -135,7 +189,38 @@ void QRScan()
         {
           String btData = lockBT.readString();
           btData += '\r';
-          if(add == btData)
+          if(setT == btData)
+          {
+            while(true)
+            {
+              int btSec = lockBT.read();
+              int btMin = lockBT.read();
+              int btHour = lockBT.read();
+              int btDay = lockBT.read();
+              int btMonth = lockBT.read();
+              int btYear = lockBT.read();
+
+              espClock.setTime(btSec, btMin, btHour, btDay, btMonth, btYear);
+
+              break;
+            }
+          }
+          else if(readL == btData)
+          {
+            File auditLog = SPIFFS.open("/auditlog.txt");
+            vector<String> logVect;
+            while(auditLog.available())
+            {
+              logVect.push_back(auditLog.readStringUntil('\n'));
+            }
+            auditLog.close();
+
+            for(int i = 1; i < logVect.size(); i++)
+            {
+              lockBT.println(logVect[i]);
+            }
+          }
+          else if(add == btData)
           {
             while(true)
             {
@@ -158,6 +243,16 @@ void QRScan()
                 adminAccessList.println(newAuthData);
                 authCount++;
                 adminAccessList.close();
+                
+                File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
+                if(!auditLog)
+                {
+                  Serial.println("error opening file");
+                  return;
+                }
+                auditLog.seek(SeekEnd);
+                auditLog.println("added code at " + espClock.getDateTime());
+                auditLog.close();
               }
             }
           }
@@ -195,6 +290,15 @@ void QRScan()
                       newAuthList.println(authVect[y]);
                     }
                     newAuthList.close();
+                    File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
+                    if(!auditLog)
+                    {
+                      Serial.println("error opening file");
+                      return;
+                    }
+                    auditLog.seek(SeekEnd);
+                    auditLog.println("deleted code at " + espClock.getDateTime());
+                    auditLog.close();
                     break;
                   }
                   if(i == authCount - 1)
@@ -254,6 +358,15 @@ void QRScan()
                           newAuthList.println(authVect[y]);
                         }
                         newAuthList.close();
+                        File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
+                        if(!auditLog)
+                        {
+                          Serial.println("error opening file");
+                          return;
+                        }
+                        auditLog.seek(SeekEnd);
+                        auditLog.println("edited code at " + espClock.getDateTime());
+                        auditLog.close();
                         break;
                       }
                     }
