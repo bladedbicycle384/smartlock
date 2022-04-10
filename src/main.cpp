@@ -116,6 +116,7 @@ void QRScan()
   File authList = SPIFFS.open("/accesslist.txt");
   if(!authList)
   {
+    Serial.println("error opening file");
     return;
   }
 
@@ -128,10 +129,10 @@ void QRScan()
 
   if(scanner.receiveQrCode(&qrCode, 100))
   {
-    String qrData = (const char*)qrCode.payload;
-    qrData += '\r';
     if(qrCode.valid)
     {
+      String qrData = (const char*)qrCode.payload;
+      qrData += '\r';
       if(qrData == authVect[1])
       {
         lockBT.begin("SmartLock");
@@ -142,19 +143,14 @@ void QRScan()
           btData += '\r';
           if(setT == btData)
           {
-            while(true)
-            {
-              int btSec = lockBT.read();
-              int btMin = lockBT.read();
-              int btHour = lockBT.read();
-              int btDay = lockBT.read();
-              int btMonth = lockBT.read();
-              int btYear = lockBT.read();
+            int btSec = lockBT.read();
+            int btMin = lockBT.read();
+            int btHour = lockBT.read();
+            int btDay = lockBT.read();
+            int btMonth = lockBT.read();
+            int btYear = lockBT.read();
 
-              espClock.setTime(btSec, btMin, btHour, btDay, btMonth, btYear);
-
-              break;
-            }
+            espClock.setTime(btSec, btMin, btHour, btDay, btMonth, btYear);
           }
           else if(readL == btData)
           {
@@ -182,7 +178,7 @@ void QRScan()
                 lockBT.println("Exited addition mode");
                 break;
               }
-              else if(newAuthData.length() > 0)
+              else if(newAuthData.length() > 1)
               {
                 File adminAccessList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
                 if(!adminAccessList)
