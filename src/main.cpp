@@ -37,54 +37,12 @@ void file_setup()
     Serial.println("error opening file");
     return;
   }
-  if(authList.println("true"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("masterkey"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("devicename"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("deviceplacement"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("wifi name"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
-  if(authList.println("wifipassword"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
+  authList.println("true");
+  authList.println("masterkey");
+  authList.println("devicename");
+  authList.println("deviceplacement");
+  authList.println("wifi name");
+  authList.println("wifipassword");
   authList.close();
 
   File logList = SPIFFS.open("/auditlog.txt", FILE_WRITE);
@@ -92,14 +50,7 @@ void file_setup()
   {
     Serial.println("error opening file");
   }
-  if(logList.println("true"))
-  {
-    Serial.println("File was written");
-  }
-  else
-  {
-    Serial.println("file write failed");
-  }
+  logList.println("true");
   logList.close();
 }
 
