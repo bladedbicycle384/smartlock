@@ -14,20 +14,21 @@ using namespace std;
 
 ESP32QRCodeReader scanner(CAMERA_MODEL_AI_THINKER);
 BluetoothSerial lockBT;
+ESP32PWM pwm;
 Servo lockServo;
 ESP32Time espClock;
 
 int authCount;
-int testCount = 1;
 
 struct QRCodeData qrCode;
 
-String add = "A\r";
-String del = "D\r";
-String edt = "E\n";
-String stp = "S\r";
-String setT = "set time\r";
-String readL = "read log\r";
+String add = "add\r";
+String del = "delete\r";
+String edt = "edit\r";
+String list = "list\r";
+String stp = "stop\r";
+String readL = "log\r";
+String setT = "time\r";
 
 void file_setup()
 {
@@ -39,36 +40,7 @@ void file_setup()
   }
   authList.println("true");
   authList.println("masterkey");
-  authList.println("devicename");
-  authList.println("deviceplacement");
-  authList.println("wifi name");
-  authList.println("wifipassword");
   authList.close();
-
-  File logList = SPIFFS.open("/auditlog.txt", FILE_WRITE);
-  if(!logList)
-  {
-    Serial.println("error opening file");
-  }
-  logList.println("true");
-  logList.close();
-}
-
-void list_files()
-{
-  File root = SPIFFS.open("/");
-  File file = root.openNextFile();
-  Serial.println("showcasing files.");
-
-  while(file)
-  {
-    Serial.print("FILE: ");
-    Serial.println(file.name());
-    file = root.openNextFile();
-  }
-
-  file.close();
-  root.close();
 }
 
 void setup()
@@ -76,7 +48,6 @@ void setup()
   Serial.begin(115200);
 
   SPIFFS.begin(true);
-
   File authList = SPIFFS.open("/accesslist.txt");
   if(!authList)
   {
@@ -96,19 +67,18 @@ void setup()
   scanner.setup();
   scanner.begin();
 
+  ESP32PWM::timerCount[0] = 4;
   lockServo.attach(LOCK_PIN);
 }
 
 void closeLock()
 {
   lockServo.write(0);
-  delay(2000);
 }
 
 void openLock()
 {
   lockServo.write(180);
-  delay(200);
 }
 
 void QRScan()
@@ -129,28 +99,87 @@ void QRScan()
 
   if(scanner.receiveQrCode(&qrCode, 100))
   {
+    String qrData = (const char*)qrCode.payload;
+    qrData += '\r';
+    Serial.println(qrData);
     if(qrCode.valid)
     {
-      String qrData = (const char*)qrCode.payload;
-      qrData += '\r';
       if(qrData == authVect[1])
       {
+        openLock();
         lockBT.begin("SmartLock");
-
+        Serial.println("Started bluetooth");
         while(true)
         {
-          String btData = lockBT.readString();
-          btData += '\r';
+          String btData = lockBT.readStringUntil('\n');
+          if(btData.length() > 1)
+          {
+            Serial.println(btData);
+          }
           if(setT == btData)
           {
-            int btSec = lockBT.read();
-            int btMin = lockBT.read();
-            int btHour = lockBT.read();
-            int btDay = lockBT.read();
-            int btMonth = lockBT.read();
-            int btYear = lockBT.read();
+            String btSec;
+            String btMin;
+            String btHour;
+            String btDay;
+            String btMonth;
+            String btYear;
+            lockBT.println("Enter seconds");
+            while(true)
+            {
+              btSec = lockBT.readStringUntil('\n');
+              if(btSec.length() > 1)
+              {
+                break;
+              }
+            }
+            lockBT.println("Enter minutes");
+            while(true)
+            {
+              btMin = lockBT.readStringUntil('\n');
+              if(btMin.length() > 1)
+              {
+                break;
+              }
+            }
+            lockBT.println("Enter hours");
+            while(true)
+            {
+              btHour = lockBT.readStringUntil('\n');
+              if(btHour.length() > 1)
+              {
+                break;
+              }
+            }
+            lockBT.println("Enter day");
+            while(true)
+            {
+              btDay = lockBT.readStringUntil('\n');
+              if(btDay.length() > 1)
+              {
+                break;
+              }
+            }
+            lockBT.println("Enter month");
+            while(true)
+            {
+              btMonth = lockBT.readStringUntil('\n');
+              if(btMonth.length() > 1)
+              {
+                break;
+              }
+            }
+            lockBT.println("Enter year");
+            while(true)
+            {
+              btYear = lockBT.readStringUntil('\n');
+              if(btYear.length() > 1)
+              {
+                break;
+              }
+            }
 
-            espClock.setTime(btSec, btMin, btHour, btDay, btMonth, btYear);
+            espClock.setTime(btSec.toInt(), btMin.toInt(), btHour.toInt(), btDay.toInt(), btMonth.toInt(), btYear.toInt());
           }
           else if(readL == btData)
           {
@@ -162,17 +191,17 @@ void QRScan()
             }
             auditLog.close();
 
-            for(int i = 1; i < logVect.size(); i++)
+            for(int i = 0; i < (logVect.size() - 1); i++)
             {
               lockBT.println(logVect[i]);
             }
           }
           else if(add == btData)
           {
+            lockBT.println("Entered add mode");
             while(true)
             {
-              String newAuthData = lockBT.readString();
-              newAuthData += '\r';
+              String newAuthData = lockBT.readStringUntil('\n');
               if(stp == newAuthData)
               {
                 lockBT.println("Exited addition mode");
@@ -180,17 +209,24 @@ void QRScan()
               }
               else if(newAuthData.length() > 1)
               {
-                File adminAccessList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
-                if(!adminAccessList)
+                authVect.push_back(newAuthData);
+                lockBT.println("Successfuly added to access list");
+                SPIFFS.remove("/accesslist.txt");
+                File newAuthList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
+                if(!newAuthList)
                 {
-                  Serial.println("error opening file");
-                  return;
+                  Serial.println("error creating file");
                 }
-                adminAccessList.seek(SeekEnd);
-                adminAccessList.println(newAuthData);
-                authCount++;
-                adminAccessList.close();
+                for(int y = 0; y < (authCount + 1); y++)
+                {
+                  String newAuthEntry = authVect[y];
+                  newAuthEntry.remove(newAuthEntry.length()-1, 1);
+                  newAuthList.println(newAuthEntry);
+                }
+                newAuthList.close();
                 
+                lockBT.println(newAuthData);
+
                 File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
                 if(!auditLog)
                 {
@@ -205,13 +241,13 @@ void QRScan()
           }
           else if(del == btData)
           {
+            lockBT.println("Entered del mode");
             while(true)
             {
               bool stopped = false;
               bool found = true;
 
-              String delAuthData = lockBT.readString();
-              delAuthData += '\r';
+              String delAuthData = lockBT.readStringUntil('\n');
               if(delAuthData.length() != 0)
               {
                 for(int i = 1; i < authCount; i++)
@@ -226,15 +262,16 @@ void QRScan()
                     authVect.erase(authVect.begin() + i);
                     lockBT.println("Successfuly deleted from access list");
                     SPIFFS.remove("/accesslist.txt");
-                    authCount--;
                     File newAuthList = SPIFFS.open("/accesslist.txt", FILE_WRITE);
                     if(!newAuthList)
                     {
                       Serial.println("error creating file");
                     }
-                    for(int y = 0; y < authCount; y++)
+                    for(int y = 0; y < (authCount - 1); y++)
                     {
-                      newAuthList.println(authVect[y]);
+                      String newAuthEntry = authVect[y];
+                      newAuthEntry.remove(newAuthEntry.length()-1, 1);
+                      newAuthList.println(newAuthEntry);
                     }
                     newAuthList.close();
                     File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
@@ -268,13 +305,13 @@ void QRScan()
           }
           else if(edt == btData)
           {
+            lockBT.println("Entered edit mode");
             while(true)
             {
               bool stopped = false;
               bool found = true;
 
-              String edtAuthData = lockBT.readString();
-              edtAuthData += '\r';
+              String edtAuthData = lockBT.readStringUntil('\n');
               if(edtAuthData.length() > 1)
               {
                 for(int i = 1; i < authCount; i++)
@@ -288,8 +325,7 @@ void QRScan()
                   {
                     while(true)
                     {
-                      String newEdtData = lockBT.readString();
-                      newEdtData += '\r';
+                      String newEdtData = lockBT.readStringUntil('\n');
                       if(newEdtData.length() > 1)
                       {
                         authVect[i] = newEdtData;
@@ -302,7 +338,9 @@ void QRScan()
                         }
                         for(int y = 0; y < authCount; y++)
                         {
-                          newAuthList.println(authVect[y]);
+                          String newAuthEntry = authVect[y];
+                          newAuthEntry.remove(newAuthEntry.length()-1, 1);
+                          newAuthList.println(newAuthEntry);
                         }
                         newAuthList.close();
                         File auditLog = SPIFFS.open("/auditlog.txt", FILE_WRITE);
@@ -337,10 +375,20 @@ void QRScan()
               }
             }
           }
+          else if(list == btData)
+          {
+            lockBT.println("Listing all access keys:");
+            for(int i = 1; i < authCount; i++)
+            {
+              lockBT.println(authVect[i]);
+            }
+          }
           else if(stp == btData)
           {
             lockBT.println("Exiting admin mode\n");
+            lockBT.disconnect();
             lockBT.end();
+            closeLock();
             return;
           }
         }
@@ -350,8 +398,9 @@ void QRScan()
         int i = 1;
         while(true)
         {
-          if(i == authCount)
+          if(i == authCount + 1)
           {
+            Serial.println("No such entry found");
             delay(5000);
             break;
           }
@@ -383,8 +432,7 @@ void loop()
     authCountV.push_back(authCountF.readStringUntil('\n'));
     authCount++;
   }
-  Serial.println(authCount);
-
+  
   authCountF.close();
 
   QRScan();
